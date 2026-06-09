@@ -2,7 +2,16 @@ const crypto = require("crypto");
 const moment = require("moment");
 
 /**
- * Sort object by key alphabetically (case-sensitive)
+ * PHP-compatible urlencode (spaces → +)
+ * VNPay uses PHP's urlencode for hash data
+ */
+const phpUrlEncode = (str) => {
+  return encodeURIComponent(String(str))
+    .replace(/%20/g, "+");
+};
+
+/**
+ * Sort object by key alphabetically
  */
 const sortObject = (obj) => {
   const sorted = {};
@@ -14,26 +23,24 @@ const sortObject = (obj) => {
 };
 
 /**
- * Build hash data string: key1=value1&key2=value2&...&keyN=valueN
- * WITHOUT URL encoding (per VNPay spec)
+ * Build hash data string: key1=value1&key2=value2
+ * Values are URL-encoded per VNPay spec (matching PHP urlencode)
  */
 const buildHashData = (params) => {
   const sorted = sortObject(params);
   return Object.entries(sorted)
-    .map(([key, value]) => `${key}=${value}`)
+    .map(([key, value]) => `${phpUrlEncode(key)}=${phpUrlEncode(value)}`)
     .join("&");
 };
 
 /**
- * Build URL query string WITH proper encoding
+ * Build URL query string
+ * Values are URL-encoded
  */
 const buildQueryString = (params) => {
   const sorted = sortObject(params);
   return Object.entries(sorted)
-    .map(
-      ([key, value]) =>
-        `${encodeURIComponent(key)}=${encodeURIComponent(value)}`
-    )
+    .map(([key, value]) => `${phpUrlEncode(key)}=${phpUrlEncode(value)}`)
     .join("&");
 };
 
@@ -68,7 +75,7 @@ const createPaymentUrl = ({ amount, ipAddr }) => {
   const normalizedIp =
     ipAddr?.replace(/^::ffff:/, "") || "127.0.0.1";
 
-  let vnpParams = {
+  const vnpParams = {
     vnp_Version: "2.1.0",
     vnp_Command: "pay",
     vnp_TmnCode: tmnCode,
@@ -83,28 +90,24 @@ const createPaymentUrl = ({ amount, ipAddr }) => {
     vnp_CreateDate: createDate,
   };
 
-  // Build hash data and sign
+  // Build hash data with URL-encoded values (matching PHP urlencode)
   const hashData = buildHashData(vnpParams);
   const secureHash = createSignature(hashData, secretKey);
 
-  // Add signature and hash type
-  vnpParams["vnp_SecureHashType"] = "SHA512";
-  vnpParams["vnp_SecureHash"] = secureHash;
-
-  // Build final URL with proper encoding
-  const paymentUrl = vnpUrl + "?" + buildQueryString(vnpParams);
+  // Build final URL: query string + secureHash appended at end (matching VNPay PHP demo)
+  const queryString = buildQueryString(vnpParams);
+  const paymentUrl =
+    vnpUrl + "?" + queryString + "&vnp_SecureHash=" + secureHash;
 
   console.log("=== VNPay Payment URL Created ===");
   console.log("Hash Data:", hashData);
   console.log("SecureHash:", secureHash);
-  console.log("Payment URL length:", paymentUrl.length);
 
   return paymentUrl;
 };
 
 /**
- * Verify VNPay return URL signature
- * Called when VNPay redirects back to ReturnUrl
+ * Verify VNPay return URL / IPN signature
  */
 const verifyReturnUrl = (queryParams) => {
   const secretKey = process.env.VNP_HASHSECRET;
@@ -113,7 +116,7 @@ const verifyReturnUrl = (queryParams) => {
     throw new Error("Missing VNPay config: VNP_HASHSECRET");
   }
 
-  // Extract only vnp_ parameters, excluding vnp_SecureHash and vnp_SecureHashType
+  // Extract vnp_ params excluding vnp_SecureHash and vnp_SecureHashType
   const vnpParams = {};
   for (const key of Object.keys(queryParams)) {
     if (
@@ -134,7 +137,7 @@ const verifyReturnUrl = (queryParams) => {
     };
   }
 
-  // Build hash data and compute signature
+  // Build hash data from decoded values, re-encode with PHP urlencode
   const hashData = buildHashData(vnpParams);
   const computedHash = createSignature(hashData, secretKey);
 
