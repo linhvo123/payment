@@ -2,20 +2,28 @@ import 'package:flutter/material.dart';
 import 'home_screen.dart';
 
 void main() {
-  runApp(const VNPayApp());
+  runApp(const PaymentApp());
 }
 
-class VNPayApp extends StatelessWidget {
-  const VNPayApp({super.key});
+class PaymentApp extends StatelessWidget {
+  const PaymentApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'VNPay Payment',
+      title: 'Payment App',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.indigo),
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF0066FF),
+          brightness: Brightness.light,
+        ),
         useMaterial3: true,
+        appBarTheme: const AppBarTheme(
+          centerTitle: true,
+          elevation: 0,
+          scrolledUnderElevation: 0,
+        ),
       ),
       home: const HomeScreen(),
     );

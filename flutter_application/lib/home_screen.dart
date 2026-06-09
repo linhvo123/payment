@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'api_service.dart';
-import 'payment_webview_screen.dart';
-import 'result_screen.dart';
+import 'models/product.dart';
+import 'widgets/product_card.dart';
+import 'screens/sepay_checkout_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -11,179 +11,221 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  final _amountController = TextEditingController();
-  final _formKey = GlobalKey<FormState>();
-  bool _isLoading = false;
-  String? _error;
+  final List<Product> _products = sampleProducts;
 
-  @override
-  void dispose() {
-    _amountController.dispose();
-    super.dispose();
+  int get _cartItemCount => _products.fold(0, (sum, p) => sum + p.quantity);
+  int get _cartTotal => _products.fold(0, (sum, p) => sum + p.total);
+
+  void _updateQuantity(Product product, int delta) {
+    setState(() {
+      product.quantity = (product.quantity + delta).clamp(0, 99);
+    });
   }
 
-  Future<void> _handlePay() async {
-    if (!_formKey.currentState!.validate()) return;
-
-    setState(() {
-      _isLoading = true;
-      _error = null;
-    });
-
-    try {
-      final amount = int.parse(_amountController.text.trim());
-
-      // This URL is intercepted by the WebView when VNPay redirects back.
-      // The backend appends ?vnpay_result=... to this URL.
-      const appReturnUrl = 'https://payment-1-3sh3.onrender.com/api/payments/vnpay-return';
-
-      final paymentUrl = await ApiService.createPaymentUrl(
-        amount: amount,
-        appReturnUrl: appReturnUrl,
+  void _goToCheckout() {
+    final cartItems = _products.where((p) => p.quantity > 0).toList();
+    if (cartItems.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Vui lòng chọn ít nhất 1 sản phẩm')),
       );
-
-      if (!mounted) return;
-
-      // Navigate to WebView to process payment
-      final resultJson = await Navigator.push<String>(
-        context,
-        MaterialPageRoute(
-          builder: (_) => PaymentWebViewScreen(
-            paymentUrl: paymentUrl,
-            callbackUrlPrefix: appReturnUrl,
-          ),
-        ),
-      );
-
-      if (!mounted) return;
-
-      if (resultJson != null) {
-        // Payment completed — navigate to result screen
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (_) => ResultScreen(resultJson: resultJson),
-          ),
-        );
-      }
-      // If resultJson is null, user pressed back — stay on home screen
-    } on ApiException catch (e) {
-      setState(() => _error = e.message);
-    } catch (e) {
-      setState(() => _error = 'Unexpected error: $e');
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+      return;
     }
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => SepayCheckoutScreen(
+          cartItems: cartItems,
+          total: _cartTotal,
+        ),
+      ),
+    );
+  }
+
+  String _formatCurrency(int amount) {
+    final formatted = amount.toString().replaceAllMapped(
+      RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+      (m) => '${m[1]}.',
+    );
+    return '${formatted}đ';
   }
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
     return Scaffold(
+      backgroundColor: const Color(0xFFF8F9FA),
       appBar: AppBar(
-        title: const Text('VNPay Payment'),
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-      ),
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Form(
-            key: _formKey,
-            child: Column(
+        backgroundColor: Colors.white,
+        title: Column(
+          children: [
+            Row(
               mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // App icon or title
-                Icon(
-                  Icons.payment,
-                  size: 80,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'Thanh toán VNPay',
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.headlineSmall,
-                ),
-                const SizedBox(height: 32),
-
-                // Amount input
-                TextFormField(
-                  controller: _amountController,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
-                    labelText: 'Số tiền (VND)',
-                    hintText: 'Nhập số tiền cần thanh toán',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.monetization_on_outlined),
+                Container(
+                  width: 28,
+                  height: 28,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0066FF),
+                    borderRadius: BorderRadius.circular(6),
                   ),
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'Vui lòng nhập số tiền';
-                    }
-                    final amount = int.tryParse(value.trim());
-                    if (amount == null || amount <= 0) {
-                      return 'Số tiền không hợp lệ';
-                    }
-                    if (amount < 5000) {
-                      return 'Số tiền tối thiểu là 5,000 VND';
-                    }
-                    return null;
-                  },
+                  child: const Center(
+                    child: Text('P', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                  ),
                 ),
-                const SizedBox(height: 24),
-
-                // Error message
-                if (_error != null)
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    margin: const EdgeInsets.only(bottom: 16),
-                    decoration: BoxDecoration(
-                      color: Colors.red.shade50,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.red.shade200),
+                const SizedBox(width: 8),
+                const Text(
+                  'Payment App',
+                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
+                ),
+              ],
+            ),
+          ],
+        ),
+        actions: [
+          if (_cartItemCount > 0)
+            Padding(
+              padding: const EdgeInsets.only(right: 12),
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.shopping_cart_outlined),
+                    onPressed: _goToCheckout,
+                  ),
+                  Positioned(
+                    right: 6,
+                    top: 6,
+                    child: Container(
+                      padding: const EdgeInsets.all(3),
+                      decoration: BoxDecoration(
+                        color: cs.error,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Text(
+                        '$_cartItemCount',
+                        style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                      ),
                     ),
-                    child: Row(
-                      children: [
-                        Icon(Icons.error_outline, color: Colors.red.shade700),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            _error!,
-                            style: TextStyle(color: Colors.red.shade700),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+      body: Column(
+        children: [
+          // Header banner
+          Container(
+            width: double.infinity,
+            color: Colors.white,
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF0066FF), Color(0xFF0099FF)],
+                ),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: const [
+                        Text(
+                          'Chọn sản phẩm & Thanh toán',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
                           ),
+                        ),
+                        SizedBox(height: 4),
+                        Text(
+                          'Hỗ trợ VNPay & SePay QR',
+                          style: TextStyle(color: Colors.white70, fontSize: 12),
                         ),
                       ],
                     ),
                   ),
-
-                // Pay button
-                SizedBox(
-                  height: 50,
-                  child: FilledButton.icon(
-                    onPressed: _isLoading ? null : _handlePay,
-                    icon: _isLoading
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
-                            ),
-                          )
-                        : const Icon(Icons.lock_outline),
-                    label: Text(
-                      _isLoading ? 'Đang xử lý...' : 'Thanh toán VNPay',
-                      style: const TextStyle(fontSize: 16),
-                    ),
-                  ),
-                ),
-              ],
+                  const Text('🛒', style: TextStyle(fontSize: 36)),
+                ],
+              ),
             ),
           ),
-        ),
+
+          // Products list
+          Expanded(
+            child: ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: _products.length,
+              itemBuilder: (context, index) {
+                return ProductCard(
+                  product: _products[index],
+                  onIncrement: () => _updateQuantity(_products[index], 1),
+                  onDecrement: () => _updateQuantity(_products[index], -1),
+                );
+              },
+            ),
+          ),
+        ],
       ),
+
+      // Bottom bar
+      bottomNavigationBar: _cartItemCount > 0
+          ? SafeArea(
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Color(0x15000000),
+                      blurRadius: 20,
+                      offset: Offset(0, -4),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '$_cartItemCount món',
+                          style: TextStyle(color: cs.onSurface.withOpacity(0.6), fontSize: 12),
+                        ),
+                        Text(
+                          _formatCurrency(_cartTotal),
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: FilledButton(
+                        onPressed: _goToCheckout,
+                        style: FilledButton.styleFrom(
+                          backgroundColor: const Color(0xFF0066FF),
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: const Text(
+                          'Đặt hàng',
+                          style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          : null,
     );
   }
 }

@@ -4,10 +4,9 @@ import 'package:flutter_application/main.dart';
 
 void main() {
   testWidgets('App renders home screen', (WidgetTester tester) async {
-    await tester.pumpWidget(const VNPayApp());
+    await tester.pumpWidget(const PaymentApp());
 
-    // Verify the home screen is shown
-    expect(find.text('Thanh toán VNPay'), findsOneWidget);
-    expect(find.text('Số tiền (VND)'), findsOneWidget);
+    // Verify the home screen is shown with payment options
+    expect(find.text('Chọn phương thức thanh toán'), findsOneWidget);
   });
 }
