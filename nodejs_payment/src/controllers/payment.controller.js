@@ -131,8 +131,10 @@ const vnpayIPN = async (req, res) => {
  */
 const createMomoPayment = async (req, res) => {
   try {
-    const { amount, orderInfo, appReturnUrl } = req.body;
+    const { amount: rawAmount, orderInfo, appReturnUrl } = req.body;
 
+    // Ensure amount is a positive integer
+    const amount = parseInt(rawAmount, 10);
     if (!amount || amount <= 0) {
       return res.status(400).json({
         success: false,
@@ -163,10 +165,12 @@ const createMomoPayment = async (req, res) => {
       requestId: result.requestId,
     });
   } catch (error) {
-    console.error("createMomoPayment error:", error);
+    console.error("createMomoPayment error:", error.message);
+    console.error("createMomoPayment stack:", error.stack);
     return res.status(500).json({
       success: false,
-      message: error.message,
+      message: error.message || "Internal server error",
+      details: error.stack?.split("\n")[0] || "",
     });
   }
 };

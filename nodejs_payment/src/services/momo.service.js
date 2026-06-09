@@ -50,40 +50,73 @@ const createSignature = (rawSignature) => {
 /**
  * Make HTTPS POST request to MoMo API
  */
-const postToMomo = (url, body) => {
-  return new Promise((resolve, reject) => {
-    const parsedUrl = new URL(url);
-    const postData = JSON.stringify(body);
+const postToMomo = async (url, body) => {
+  const postData = JSON.stringify(body);
 
-    const options = {
-      hostname: parsedUrl.hostname,
-      port: parsedUrl.port || 443,
-      path: parsedUrl.pathname + parsedUrl.search,
+  // Try native fetch first (Node 18+)
+  try {
+    const response = await fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Content-Length": Buffer.byteLength(postData),
+        "Content-Length": String(Buffer.byteLength(postData)),
       },
-    };
-
-    const protocol = parsedUrl.protocol === "https:" ? https : http;
-
-    const req = protocol.request(options, (res) => {
-      let data = "";
-      res.on("data", (chunk) => (data += chunk));
-      res.on("end", () => {
-        try {
-          resolve(JSON.parse(data));
-        } catch (e) {
-          resolve({ raw: data });
-        }
-      });
+      body: postData,
     });
 
-    req.on("error", (e) => reject(e));
-    req.write(postData);
-    req.end();
-  });
+    const data = await response.text();
+    console.log("MoMo HTTP status:", response.status);
+    console.log("MoMo raw response:", data);
+
+    try {
+      return JSON.parse(data);
+    } catch {
+      return { raw: data, httpStatus: response.status };
+    }
+  } catch (fetchError) {
+    console.error("fetch failed, trying https fallback:", fetchError.message);
+
+    // Fallback to raw https
+    return new Promise((resolve, reject) => {
+      const parsedUrl = new URL(url);
+      const options = {
+        hostname: parsedUrl.hostname,
+        port: parsedUrl.port || 443,
+        path: parsedUrl.pathname + parsedUrl.search,
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Content-Length": Buffer.byteLength(postData),
+        },
+        timeout: 15000,
+      };
+
+      const protocol = parsedUrl.protocol === "https:" ? https : http;
+
+      const req = protocol.request(options, (res) => {
+        let data = "";
+        res.on("data", (chunk) => (data += chunk));
+        res.on("end", () => {
+          console.log("MoMo fallback HTTP status:", res.statusCode);
+          console.log("MoMo fallback raw response:", data);
+          try {
+            resolve(JSON.parse(data));
+          } catch (e) {
+            resolve({ raw: data, httpStatus: res.statusCode });
+          }
+        });
+      });
+
+      req.on("timeout", () => {
+        req.destroy();
+        reject(new Error("MoMo API request timed out after 15s"));
+      });
+
+      req.on("error", (e) => reject(e));
+      req.write(postData);
+      req.end();
+    });
+  }
 };
 
 /**
