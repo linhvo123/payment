@@ -124,6 +124,21 @@ const createPaymentUrl = async ({ amount, orderInfo, appReturnUrl, redirectUrl, 
     `${MOMO_CONFIG.accessKey}:${MOMO_CONFIG.secretKey}`
   ).toString("base64");
 
+  // Build raw signature string + HMAC-SHA256 (for v2 compatibility, some v3 need this too)
+  const rawSignature =
+    `accessKey=${MOMO_CONFIG.accessKey}` +
+    `&amount=${amount}` +
+    `&extraData=${extraData}` +
+    `&ipnUrl=${ipnUrl}` +
+    `&orderId=${orderId}` +
+    `&orderInfo=${orderInfo}` +
+    `&partnerCode=${MOMO_CONFIG.partnerCode}` +
+    `&redirectUrl=${redirectUrl}` +
+    `&requestId=${requestId}` +
+    `&requestType=captureWallet`;
+
+  const signature = createSignature(rawSignature);
+
   const requestBody = {
     partnerCode: MOMO_CONFIG.partnerCode,
     accessKey: MOMO_CONFIG.accessKey,
@@ -135,34 +150,41 @@ const createPaymentUrl = async ({ amount, orderInfo, appReturnUrl, redirectUrl, 
     ipnUrl: ipnUrl,
     extraData: extraData,
     requestType: "captureWallet",
+    signature: signature,
     lang: "vi",
   };
 
   console.log("=== MoMo Payment Request ===");
   console.log("URL:", MOMO_CONFIG.endpoint);
   console.log("Auth: Basic ***");
+  console.log("Signature:", signature);
   console.log("Request Body:", JSON.stringify(requestBody, null, 2));
 
   const response = await postToMomo(MOMO_CONFIG.endpoint, requestBody, authHeader);
 
   console.log("=== MoMo Response ===");
-  console.log(JSON.stringify(response, null, 2));
+  console.log("RAW:", JSON.stringify(response));
 
-  // MoMo v3 returns resultCode in response
-  if (response.resultCode === 0 || response.resultCode === "0") {
+  // MoMo v3 response: try multiple possible formats
+  const resultCode = response.resultCode ?? response.status ?? response.errorCode;
+  const payUrl = response.payUrl ?? response.payurl ?? response.data?.payUrl;
+  const msg = response.message ?? response.errorMessage ?? response.description ?? "";
+
+  if (resultCode === 0 || resultCode === "0" || resultCode === 200) {
     return {
       success: true,
-      payUrl: response.payUrl,
-      qrCodeUrl: response.qrCodeUrl,
-      deeplink: response.deeplink || response.deeplinkUrl,
+      payUrl: payUrl,
+      qrCodeUrl: response.qrCodeUrl ?? response.data?.qrCodeUrl,
+      deeplink: response.deeplink ?? response.deeplinkUrl ?? response.data?.deeplink,
       requestId: requestId,
       orderId: orderId,
       amount: amount,
     };
   } else {
-    throw new Error(
-      response.message || response.errorMessage || `MoMo error (code: ${response.resultCode})`
-    );
+    // Throw with full response for debugging
+    const err = new Error(msg || `MoMo error (code: ${resultCode})`);
+    err.momoResponse = response;
+    throw err;
   }
 };
 
