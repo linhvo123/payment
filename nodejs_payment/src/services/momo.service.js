@@ -16,7 +16,7 @@ const generateOrderId = () => {
   return "MM" + p(n.getFullYear(),4) + p(n.getMonth()+1,2) + p(n.getDate(),2) + p(n.getHours(),2) + p(n.getMinutes(),2) + p(n.getSeconds(),2) + p(n.getMilliseconds(),3);
 };
 
-const createSignature = (raw, key) => crypto.createHmac("sha256", key).update(raw, "utf-8").digest("hex").toUpperCase();
+const createSignature = (raw, key) => crypto.createHmac("sha256", key).update(raw, "utf-8").digest("hex");
 
 const postToMomo = (url, body) => new Promise((resolve, reject) => {
   const data = JSON.stringify(body);
@@ -44,7 +44,7 @@ const createPaymentUrl = async ({ amount, orderInfo, appReturnUrl, redirectUrl, 
   const orderId = generateOrderId();
   const extraData = appReturnUrl ? Buffer.from(appReturnUrl).toString("base64") : "";
 
-  const rawSig = "accessKey=" + cfg.accessKey + "&amount=" + amount + "&extraData=" + extraData + "&ipnUrl=" + ipnUrl + "&lang=vi&orderId=" + orderId + "&orderInfo=" + orderInfo + "&partnerCode=" + cfg.partnerCode + "&redirectUrl=" + redirectUrl + "&requestId=" + requestId + "&requestType=captureWallet";
+  const rawSig = "accessKey=" + cfg.accessKey + "&amount=" + amount + "&extraData=" + extraData + "&ipnUrl=" + ipnUrl + "&orderId=" + orderId + "&orderInfo=" + orderInfo + "&partnerCode=" + cfg.partnerCode + "&redirectUrl=" + redirectUrl + "&requestId=" + requestId + "&requestType=captureWallet";
   const signature = createSignature(rawSig, cfg.secretKey);
 
   const body = {
@@ -76,7 +76,7 @@ const verifyCallback = (params) => {
   const sig = params.signature;
   if (!sig) return { success: false, message: "Missing signature" };
 
-  const rawSig = "accessKey=" + (params.accessKey||"") + "&amount=" + (params.amount||"") + "&extraData=" + (params.extraData||"") + "&lang=vi&message=" + (params.message||"") + "&orderId=" + (params.orderId||"") + "&orderInfo=" + (params.orderInfo||"") + "&orderType=" + (params.orderType||"") + "&partnerCode=" + (params.partnerCode||"") + "&payType=" + (params.payType||"") + "&requestId=" + (params.requestId||"") + "&responseTime=" + (params.responseTime||"") + "&resultCode=" + code + "&transId=" + (params.transId||"");
+  const rawSig = "accessKey=" + (params.accessKey||"") + "&amount=" + (params.amount||"") + "&extraData=" + (params.extraData||"") + "&message=" + (params.message||"") + "&orderId=" + (params.orderId||"") + "&orderInfo=" + (params.orderInfo||"") + "&orderType=" + (params.orderType||"") + "&partnerCode=" + (params.partnerCode||"") + "&payType=" + (params.payType||"") + "&requestId=" + (params.requestId||"") + "&responseTime=" + (params.responseTime||"") + "&resultCode=" + code + "&transId=" + (params.transId||"");
 
   const computed = createSignature(rawSig, cfg.secretKey);
   const valid = computed === sig;
