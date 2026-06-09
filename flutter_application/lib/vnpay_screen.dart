@@ -118,30 +118,46 @@ class _VNPayScreenState extends State<VNPayScreen> {
                 ),
                 const SizedBox(height: 32),
 
-                // Amount input
-                TextFormField(
-                  controller: _amountController,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
-                    labelText: 'Số tiền (VND)',
-                    hintText: 'Nhập số tiền cần thanh toán',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.monetization_on_outlined),
+                // Amount: show as text if pre-filled, input if manual
+                if (widget.prefillAmount != null) ...[
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.withOpacity(0.05),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.blue.withOpacity(0.2)),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.monetization_on_outlined, color: Colors.blue),
+                        const SizedBox(width: 8),
+                        Text(
+                          '${widget.prefillAmount!.toString().replaceAllMapped(RegExp(r"(\d{1,3})(?=(\d{3})+(?!\d))"), (m) => "${m[1]}.")} VND',
+                          style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.blue),
+                        ),
+                      ],
+                    ),
                   ),
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'Vui lòng nhập số tiền';
-                    }
-                    final amount = int.tryParse(value.trim());
-                    if (amount == null || amount <= 0) {
-                      return 'Số tiền không hợp lệ';
-                    }
-                    if (amount < 5000) {
-                      return 'Số tiền tối thiểu là 5,000 VND';
-                    }
-                    return null;
-                  },
-                ),
+                ] else ...[
+                  TextFormField(
+                    controller: _amountController,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      labelText: 'Số tiền (VND)',
+                      hintText: 'Nhập số tiền cần thanh toán',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.monetization_on_outlined),
+                    ),
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) return 'Vui lòng nhập số tiền';
+                      final a = int.tryParse(value.trim());
+                      if (a == null || a <= 0) return 'Số tiền không hợp lệ';
+                      if (a < 5000) return 'Số tiền tối thiểu là 5,000 VND';
+                      return null;
+                    },
+                  ),
+                ],
                 const SizedBox(height: 24),
 
                 // Error message

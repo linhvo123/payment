@@ -1,5 +1,6 @@
-import 'dart:convert';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../api_service.dart';
 import '../payment_webview_screen.dart';
 import '../result_screen.dart';
@@ -59,27 +60,46 @@ class _MoMoPaymentScreenState extends State<MoMoPaymentScreen> {
 
       final payUrl = result['payUrl'] as String;
 
-      // Navigate to WebView to process payment
-      // MoMo returns result via momo_result query param
-      final resultJson = await Navigator.push<String>(
-        context,
-        MaterialPageRoute(
-          builder: (_) => PaymentWebViewScreen(
-            paymentUrl: payUrl,
-            callbackUrlPrefix: appReturnUrl,
-          ),
-        ),
-      );
-
-      if (!mounted) return;
-
-      if (resultJson != null) {
-        Navigator.pushReplacement(
+      if (kIsWeb) {
+        // Web: open in new tab (iframe bị MoMo chặn)
+        final launched = await launchUrl(
+          Uri.parse(payUrl),
+          mode: LaunchMode.externalApplication,
+        );
+        if (!launched) {
+          setState(() => _error = 'Không thể mở trang thanh toán MoMo');
+          return;
+        }
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Vui lòng hoàn tất thanh toán ở tab mới.'),
+              duration: Duration(seconds: 5),
+            ),
+          );
+        }
+      } else {
+        // Mobile: use WebView with proper Android settings
+        final resultJson = await Navigator.push<String>(
           context,
           MaterialPageRoute(
-            builder: (_) => ResultScreen(resultJson: resultJson),
+            builder: (_) => PaymentWebViewScreen(
+              paymentUrl: payUrl,
+              callbackUrlPrefix: appReturnUrl,
+            ),
           ),
         );
+
+        if (!mounted) return;
+
+        if (resultJson != null) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (_) => ResultScreen(resultJson: resultJson),
+            ),
+          );
+        }
       }
     } on ApiException catch (e) {
       setState(() => _error = e.message);
@@ -147,30 +167,46 @@ class _MoMoPaymentScreenState extends State<MoMoPaymentScreen> {
                 ),
                 const SizedBox(height: 32),
 
-                // Amount input
-                TextFormField(
-                  controller: _amountController,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
-                    labelText: 'Số tiền (VND)',
-                    hintText: 'Nhập số tiền cần thanh toán',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.monetization_on_outlined),
+                // Amount: show as text if pre-filled, input if manual
+                if (widget.prefillAmount != null) ...[
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFA50064).withOpacity(0.05),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFFA50064).withOpacity(0.2)),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.monetization_on_outlined, color: Color(0xFFA50064)),
+                        const SizedBox(width: 8),
+                        Text(
+                          '${widget.prefillAmount!.toString().replaceAllMapped(RegExp(r"(\d{1,3})(?=(\d{3})+(?!\d))"), (m) => "${m[1]}.")} VND',
+                          style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Color(0xFFA50064)),
+                        ),
+                      ],
+                    ),
                   ),
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'Vui lòng nhập số tiền';
-                    }
-                    final amount = int.tryParse(value.trim());
-                    if (amount == null || amount <= 0) {
-                      return 'Số tiền không hợp lệ';
-                    }
-                    if (amount < 1000) {
-                      return 'Số tiền tối thiểu là 1,000 VND';
-                    }
-                    return null;
-                  },
-                ),
+                ] else ...[
+                  TextFormField(
+                    controller: _amountController,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      labelText: 'Số tiền (VND)',
+                      hintText: 'Nhập số tiền cần thanh toán',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.monetization_on_outlined),
+                    ),
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) return 'Vui lòng nhập số tiền';
+                      final a = int.tryParse(value.trim());
+                      if (a == null || a <= 0) return 'Số tiền không hợp lệ';
+                      if (a < 1000) return 'Số tiền tối thiểu là 1,000 VND';
+                      return null;
+                    },
+                  ),
+                ],
                 const SizedBox(height: 24),
 
                 // Error message
