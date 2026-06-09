@@ -9,16 +9,23 @@ class ApiService {
       dotenv.env['API_BASE_URL'] ?? 'https://payment-1-3sh3.onrender.com';
 
   /// Create a VNPay payment URL
-  /// Returns the payment URL to redirect user to VNPay
+  /// [appReturnUrl] — Flutter app's origin (e.g. http://localhost:55000)
+  ///   so backend can redirect back with result after payment
   static Future<Map<String, dynamic>> createPayment({
     required double amount,
+    String? appReturnUrl,
   }) async {
     final uri = Uri.parse('$baseUrl/api/payments/create');
+
+    final body = <String, dynamic>{'amount': amount};
+    if (appReturnUrl != null && appReturnUrl.isNotEmpty) {
+      body['appReturnUrl'] = appReturnUrl;
+    }
 
     final response = await http.post(
       uri,
       headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'amount': amount}),
+      body: jsonEncode(body),
     );
 
     if (response.statusCode == 200) {

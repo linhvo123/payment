@@ -3,7 +3,7 @@ const { createPaymentUrl, verifyReturnUrl } =
 
 const createPayment = async (req, res) => {
   try {
-    const { amount } = req.body;
+    const { amount, appReturnUrl } = req.body;
 
     if (!amount || amount <= 0) {
       return res.status(400).json({
@@ -20,6 +20,7 @@ const createPayment = async (req, res) => {
     const paymentUrl = createPaymentUrl({
       amount,
       ipAddr,
+      appReturnUrl,
     });
 
     return res.json({
@@ -28,7 +29,6 @@ const createPayment = async (req, res) => {
     });
   } catch (error) {
     console.error("createPayment error:", error);
-
     return res.status(500).json({
       success: false,
       message: error.message,
@@ -38,18 +38,44 @@ const createPayment = async (req, res) => {
 
 /**
  * VNPay Return URL handler (GET)
- * VNPay redirects user here after payment → returns JSON for Flutter to display
+ * Verifies signature, then 302 redirects to Flutter app with result
  */
 const vnpayReturn = async (req, res) => {
   try {
     console.log("=== VNPay Return Called ===");
-    console.log("Query params:", req.query);
 
-    const result = verifyReturnUrl(req.query);
+    const { returnAppUrl, ...vnpParams } = req.query;
+    const result = verifyReturnUrl(vnpParams);
 
+    const resultJson = JSON.stringify(result);
+    const encoded = encodeURIComponent(resultJson);
+
+    if (returnAppUrl) {
+      // Redirect to Flutter app with result in query param
+      return res.redirect(
+        302,
+        `${returnAppUrl}?vnpay_result=${encoded}`
+      );
+    }
+
+    // No Flutter URL — just return JSON (fallback)
     return res.json(result);
   } catch (error) {
     console.error("vnpayReturn error:", error);
+
+    // Try redirect even on error
+    const { returnAppUrl } = req.query;
+    if (returnAppUrl) {
+      const errJson = JSON.stringify({
+        success: false,
+        message: error.message,
+      });
+      return res.redirect(
+        302,
+        `${returnAppUrl}?vnpay_result=${encodeURIComponent(errJson)}`
+      );
+    }
+
     return res.status(500).json({
       success: false,
       message: error.message,

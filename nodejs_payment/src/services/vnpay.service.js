@@ -57,7 +57,7 @@ const createSignature = (hashData, secretKey) => {
 /**
  * Create VNPay payment URL
  */
-const createPaymentUrl = ({ amount, ipAddr }) => {
+const createPaymentUrl = ({ amount, ipAddr, appReturnUrl }) => {
   const tmnCode = process.env.VNP_TMNCODE;
   const secretKey = process.env.VNP_HASHSECRET;
   const vnpUrl = process.env.VNP_URL;
@@ -75,6 +75,13 @@ const createPaymentUrl = ({ amount, ipAddr }) => {
   const normalizedIp =
     ipAddr?.replace(/^::ffff:/, "") || "127.0.0.1";
 
+  // Build return URL with appReturnUrl so backend can redirect to Flutter later
+  let returnUrl = process.env.VNP_RETURN_URL;
+  if (appReturnUrl) {
+    const sep = returnUrl.includes("?") ? "&" : "?";
+    returnUrl += `${sep}returnAppUrl=${encodeURIComponent(appReturnUrl)}`;
+  }
+
   const vnpParams = {
     vnp_Version: "2.1.0",
     vnp_Command: "pay",
@@ -85,7 +92,7 @@ const createPaymentUrl = ({ amount, ipAddr }) => {
     vnp_OrderInfo: `Thanh toan don hang ${orderId}`,
     vnp_OrderType: "other",
     vnp_Amount: amount * 100,
-    vnp_ReturnUrl: process.env.VNP_RETURN_URL,
+    vnp_ReturnUrl: returnUrl,
     vnp_IpAddr: normalizedIp,
     vnp_CreateDate: createDate,
   };

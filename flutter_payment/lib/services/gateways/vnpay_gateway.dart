@@ -3,11 +3,17 @@ import '../api_service.dart';
 import 'payment_gateway.dart';
 
 class VNPayGateway implements PaymentGateway {
+  final String? appReturnUrl;
+
+  VNPayGateway({this.appReturnUrl});
+
   @override
   Future<PaymentResult> pay(double amount) async {
     try {
-      // Call Node.js backend to create VNPay payment URL
-      final response = await ApiService.createPayment(amount: amount);
+      final response = await ApiService.createPayment(
+        amount: amount,
+        appReturnUrl: appReturnUrl,
+      );
 
       if (response['success'] == true) {
         final paymentUrl = response['paymentUrl'] as String;

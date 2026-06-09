@@ -9,9 +9,12 @@ import '../services/gateways/momo_gateway.dart';
 import '../services/gateways/payment_gateway.dart';
 import '../services/gateways/vnpay_gateway.dart';
 
+import '../services/payment_launcher_stub.dart'
+    if (dart.library.html) '../services/payment_launcher_web.dart'
+    if (dart.library.io) '../services/payment_launcher_mobile.dart';
+
 import '../widgets/payment_method_tile.dart';
 import 'payment_result_screen.dart';
-import 'payment_webview.dart';
 
 class PaymentScreen extends StatefulWidget {
   const PaymentScreen({super.key});
@@ -40,7 +43,9 @@ class _PaymentScreenState extends State<PaymentScreen> {
         gateway = MomoGateway();
         break;
       case 'vnpay':
-        gateway = VNPayGateway();
+        final origin = Uri.base.origin;
+        final appUrl = origin.startsWith('http') ? origin : null;
+        gateway = VNPayGateway(appReturnUrl: appUrl);
         break;
       default:
         gateway = BankGateway();
@@ -57,20 +62,25 @@ class _PaymentScreenState extends State<PaymentScreen> {
 
     if (!mounted) return;
 
-    // For VNPay: open WebView and wait for payment result
+    // For VNPay: launch payment page (popup on web, browser on mobile)
     if (selectedMethodId == 'vnpay' && result.pending) {
-      final vnpayUrl = result.message; // URL stored in message
-      final webViewResult = await Navigator.push<PaymentResult>(
-        context,
-        MaterialPageRoute(
-          builder: (_) => PaymentWebView(paymentUrl: vnpayUrl),
-        ),
-      );
+      final vnpayUrl = result.message;
+
+      final paymentResult = await launchPayment(vnpayUrl);
 
       if (!mounted) return;
 
-      if (webViewResult != null) {
-        _showResult(webViewResult);
+      if (paymentResult != null) {
+        // Web: got result from popup postMessage
+        _showResult(paymentResult);
+      } else {
+        // Mobile or fallback: show pending screen
+        _showResult(PaymentResult(
+          success: true,
+          message: 'Vui lòng hoàn tất thanh toán trên trình duyệt.\n'
+              'Sau khi thanh toán, quay lại app.',
+          pending: true,
+        ));
       }
       return;
     }
@@ -85,6 +95,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
         builder: (_) => PaymentResultScreen(
           success: result.success,
           message: result.message,
+          pending: result.pending,
           data: result.data,
         ),
       ),
