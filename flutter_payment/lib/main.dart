@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
@@ -13,7 +14,14 @@ final navigatorKey = GlobalKey<NavigatorState>();
 PaymentResult? _startupResult;
 
 Future<void> main() async {
-  await dotenv.load();
+  // Safely load .env — failure should NOT prevent app from starting.
+  // On Android, asset loading can fail if the build cache is corrupt.
+  try {
+    await dotenv.load();
+  } catch (e, st) {
+    debugPrint('⚠ dotenv.load failed: $e\n$st');
+    // App continues — ApiService has a fallback default URL.
+  }
 
   // Check if launched with VNPay result (web redirect)
   handleStartupResult((result) {
