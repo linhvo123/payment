@@ -49,21 +49,29 @@ const createSignature = (rawSignature) => {
 
 /**
  * Make HTTPS POST request to MoMo API
+ * MoMo v3 uses HTTP Basic Auth (accessKey:secretKey)
  */
-const postToMomo = (url, body) => {
+const postToMomo = (url, body, authHeader) => {
   return new Promise((resolve, reject) => {
     const postData = JSON.stringify(body);
     const parsedUrl = new URL(url);
+
+    const headers = {
+      "Content-Type": "application/json",
+      "Content-Length": Buffer.byteLength(postData),
+    };
+
+    // Add Basic Auth if provided
+    if (authHeader) {
+      headers["Authorization"] = authHeader;
+    }
 
     const options = {
       hostname: parsedUrl.hostname,
       port: parsedUrl.port || 443,
       path: parsedUrl.pathname + parsedUrl.search,
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Content-Length": Buffer.byteLength(postData),
-      },
+      headers,
       timeout: 15000,
     };
 
@@ -97,12 +105,13 @@ const postToMomo = (url, body) => {
 };
 
 /**
- * Create MoMo payment request
+ * Create MoMo payment request (v3 API - uses HTTP Basic Auth)
  *
  * @param {Object} params
  * @param {number} params.amount - Payment amount in VND
  * @param {string} params.orderInfo - Order description
  * @param {string} params.appReturnUrl - URL to redirect Flutter app after payment
+ * @param {string} params.redirectUrl - MoMo redirect URL
  * @param {string} params.ipnUrl - IPN URL for server notification
  */
 const createPaymentUrl = async ({ amount, orderInfo, appReturnUrl, redirectUrl, ipnUrl }) => {
@@ -110,20 +119,10 @@ const createPaymentUrl = async ({ amount, orderInfo, appReturnUrl, redirectUrl, 
   const orderId = generateOrderId();
   const extraData = appReturnUrl ? Buffer.from(appReturnUrl).toString("base64") : "";
 
-  // Build raw signature string (parameters in alphabetical order)
-  const rawSignature =
-    `accessKey=${MOMO_CONFIG.accessKey}` +
-    `&amount=${amount}` +
-    `&extraData=${extraData}` +
-    `&ipnUrl=${ipnUrl}` +
-    `&orderId=${orderId}` +
-    `&orderInfo=${orderInfo}` +
-    `&partnerCode=${MOMO_CONFIG.partnerCode}` +
-    `&redirectUrl=${redirectUrl}` +
-    `&requestId=${requestId}` +
-    `&requestType=captureWallet`;
-
-  const signature = createSignature(rawSignature);
+  // Build Basic Auth header: base64(accessKey:secretKey)
+  const authHeader = "Basic " + Buffer.from(
+    `${MOMO_CONFIG.accessKey}:${MOMO_CONFIG.secretKey}`
+  ).toString("base64");
 
   const requestBody = {
     partnerCode: MOMO_CONFIG.partnerCode,
@@ -136,33 +135,33 @@ const createPaymentUrl = async ({ amount, orderInfo, appReturnUrl, redirectUrl, 
     ipnUrl: ipnUrl,
     extraData: extraData,
     requestType: "captureWallet",
-    signature: signature,
     lang: "vi",
   };
 
   console.log("=== MoMo Payment Request ===");
-  console.log("Raw Signature:", rawSignature);
-  console.log("Signature:", signature);
+  console.log("URL:", MOMO_CONFIG.endpoint);
+  console.log("Auth: Basic ***");
   console.log("Request Body:", JSON.stringify(requestBody, null, 2));
 
-  const response = await postToMomo(MOMO_CONFIG.endpoint, requestBody);
+  const response = await postToMomo(MOMO_CONFIG.endpoint, requestBody, authHeader);
 
   console.log("=== MoMo Response ===");
   console.log(JSON.stringify(response, null, 2));
 
+  // MoMo v3 returns resultCode in response
   if (response.resultCode === 0 || response.resultCode === "0") {
     return {
       success: true,
       payUrl: response.payUrl,
       qrCodeUrl: response.qrCodeUrl,
-      deeplink: response.deeplink,
+      deeplink: response.deeplink || response.deeplinkUrl,
       requestId: requestId,
       orderId: orderId,
       amount: amount,
     };
   } else {
     throw new Error(
-      response.message || `MoMo error (code: ${response.resultCode})`
+      response.message || response.errorMessage || `MoMo error (code: ${response.resultCode})`
     );
   }
 };
