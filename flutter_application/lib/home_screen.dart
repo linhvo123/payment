@@ -144,7 +144,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                         SizedBox(height: 4),
                         Text(
-                          'Hỗ trợ VNPay & SePay QR',
+                          'Hỗ trợ VNPay, MoMo & SePay QR',
                           style: TextStyle(color: Colors.white70, fontSize: 12),
                         ),
                       ],

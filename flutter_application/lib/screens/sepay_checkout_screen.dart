@@ -3,6 +3,7 @@ import '../models/product.dart';
 import '../services/sepay_service.dart';
 import '../vnpay_screen.dart';
 import 'sepay_payment_screen.dart';
+import 'momo_screen.dart';
 
 class SepayCheckoutScreen extends StatelessWidget {
   final List<Product> cartItems;
@@ -44,6 +45,15 @@ class SepayCheckoutScreen extends StatelessWidget {
       context,
       MaterialPageRoute(
         builder: (_) => VNPayScreen(prefillAmount: total),
+      ),
+    );
+  }
+
+  void _payWithMoMo(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => MoMoPaymentScreen(prefillAmount: total),
       ),
     );
   }
@@ -133,6 +143,16 @@ class SepayCheckoutScreen extends StatelessWidget {
                         subtitle: 'Thanh toán qua cổng VNPay',
                         color: const Color(0xFFE53935),
                         onTap: () => _payWithVNPay(context),
+                      ),
+                      const SizedBox(height: 12),
+
+                      // MoMo option
+                      _PaymentMethodCard(
+                        icon: Icons.wallet,
+                        title: 'MoMo',
+                        subtitle: 'Thanh toán qua Ví MoMo',
+                        color: const Color(0xFFA50064),
+                        onTap: () => _payWithMoMo(context),
                       ),
                       const SizedBox(height: 12),
 

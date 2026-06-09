@@ -70,12 +70,13 @@ class ResultScreen extends StatelessWidget {
                         ),
                         const Divider(),
                         _buildDetailRow(context, 'Mã giao dịch', data['txnRef']),
-                        _buildDetailRow(context, 'Số tiền', _formatAmount(data['amount'])),
+                        _buildDetailRow(context, 'Số tiền', _formatAmount(data['amount'], isMomo: data['payType'] != null)),
                         _buildDetailRow(context, 'Nội dung', data['orderInfo']),
                         _buildDetailRow(context, 'Mã phản hồi', data['responseCode']),
-                        _buildDetailRow(context, 'Mã giao dịch VNPay', data['transactionNo']),
+                        _buildDetailRow(context, 'Mã giao dịch', data['transactionNo']),
                         _buildDetailRow(context, 'Ngân hàng', data['bankCode']),
-                        _buildDetailRow(context, 'Thời gian', data['payDate']),
+                        _buildDetailRow(context, 'Kênh thanh toán', data['payType']),
+                        _buildDetailRow(context, 'Thời gian', data['payDate'] ?? data['responseTime']),
                         _buildDetailRow(context, 'Trạng thái', _formatTxnStatus(data['transactionStatus'])),
                       ],
                     ),
@@ -130,11 +131,11 @@ class ResultScreen extends StatelessWidget {
     );
   }
 
-  String _formatAmount(dynamic amount) {
+  String _formatAmount(dynamic amount, {bool isMomo = false}) {
     if (amount == null) return '';
     final numAmount = int.tryParse(amount.toString()) ?? 0;
-    // VNPay returns amount * 100, so divide back
-    final actual = numAmount / 100;
+    // VNPay returns amount * 100, MoMo returns raw amount
+    final actual = isMomo ? numAmount : numAmount / 100;
     return '${actual.toStringAsFixed(0)} VND';
   }
 
@@ -142,6 +143,7 @@ class ResultScreen extends StatelessWidget {
     if (status == null) return '';
     switch (status.toString()) {
       case '00':
+      case '0':
         return 'Thành công';
       case '01':
         return 'Giao dịch chưa hoàn tất';

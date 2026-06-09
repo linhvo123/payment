@@ -30,8 +30,11 @@ class _PaymentWebViewScreenState extends State<PaymentWebViewScreen> {
       ..setNavigationDelegate(
         NavigationDelegate(
           onPageStarted: (url) {
-            // Check if VNPay is redirecting back with result
-            if (url.startsWith(widget.callbackUrlPrefix)) {
+            // Only intercept if the URL already contains a payment result.
+            // Otherwise let the backend process the redirect first.
+            final uri = Uri.parse(url);
+            if (uri.queryParameters.containsKey('vnpay_result') ||
+                uri.queryParameters.containsKey('momo_result')) {
               _handleCallbackUrl(url);
               return;
             }
@@ -53,16 +56,15 @@ class _PaymentWebViewScreenState extends State<PaymentWebViewScreen> {
     _didPop = true;
 
     final uri = Uri.parse(url);
-    final vnpayResult = uri.queryParameters['vnpay_result'];
 
+    // Check for VNPay result
+    final vnpayResult = uri.queryParameters['vnpay_result'];
     if (vnpayResult != null && vnpayResult.isNotEmpty) {
       try {
         final decoded = Uri.decodeComponent(vnpayResult);
-        // Validate it's parseable JSON
-        jsonDecode(decoded);
+        jsonDecode(decoded); // validate JSON
         Navigator.pop(context, decoded);
       } catch (_) {
-        // If parsing fails, return a fallback error
         Navigator.pop(
           context,
           jsonEncode({
@@ -71,15 +73,36 @@ class _PaymentWebViewScreenState extends State<PaymentWebViewScreen> {
           }),
         );
       }
-    } else {
-      Navigator.pop(
-        context,
-        jsonEncode({
-          'success': false,
-          'message': 'No payment result received',
-        }),
-      );
+      return;
     }
+
+    // Check for MoMo result
+    final momoResult = uri.queryParameters['momo_result'];
+    if (momoResult != null && momoResult.isNotEmpty) {
+      try {
+        final decoded = Uri.decodeComponent(momoResult);
+        jsonDecode(decoded); // validate JSON
+        Navigator.pop(context, decoded);
+      } catch (_) {
+        Navigator.pop(
+          context,
+          jsonEncode({
+            'success': false,
+            'message': 'Invalid MoMo payment result data',
+          }),
+        );
+      }
+      return;
+    }
+
+    // No recognizable payment result
+    Navigator.pop(
+      context,
+      jsonEncode({
+        'success': false,
+        'message': 'No payment result received',
+      }),
+    );
   }
 
   @override
@@ -93,7 +116,7 @@ class _PaymentWebViewScreenState extends State<PaymentWebViewScreen> {
       },
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('Thanh toán VNPay'),
+          title: const Text('Thanh toán'),
           backgroundColor: Theme.of(context).colorScheme.inversePrimary,
           actions: [
             // Refresh button
