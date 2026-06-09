@@ -282,31 +282,65 @@ const momoReturn = async (req, res) => {
 };
 
 /**
- * Debug endpoint: test MoMo API connectivity
- * Uses the same createPaymentUrl from momo.service.js
+ * Debug endpoint: test MoMo API with multiple auth methods
  */
 const momoDebug = async (req, res) => {
   try {
     const { amount } = req.body;
     const testAmount = parseInt(amount, 10) || 10000;
+    const https = require("https");
+    const crypto = require("crypto");
 
-    const { createPaymentUrl: testMomo } = require("../services/momo.service");
+    const accessKey = "F8B6IOfmWI96orwY";
+    const secretKey = "v779836144r889475613010759404394";
+    const partnerCode = "MOMO";
+    const requestId = `${Date.now()}_dbg`;
+    const orderId = `DBG${Date.now()}`;
 
-    const result = await testMomo({
-      amount: testAmount,
-      orderInfo: "Debug test payment",
-      appReturnUrl: "",
-      redirectUrl: "https://payment-1-3sh3.onrender.com/api/payments/momo-return",
-      ipnUrl: "https://payment-1-3sh3.onrender.com/api/payments/momo-ipn",
-    });
+    const redirectUrl = "https://payment-1-3sh3.onrender.com/api/payments/momo-return";
+    const ipnUrl = "https://payment-1-3sh3.onrender.com/api/payments/momo-ipn";
 
-    return res.json(result);
+    // Build signature
+    const rawSig = `accessKey=${accessKey}&amount=${testAmount}&extraData=&ipnUrl=${ipnUrl}&orderId=${orderId}&orderInfo=Debug test&partnerCode=${partnerCode}&redirectUrl=${redirectUrl}&requestId=${requestId}&requestType=captureWallet`;
+    const signature = crypto.createHmac("sha256", secretKey).update(rawSig).digest("hex");
+
+    const baseBody = {
+      partnerCode, accessKey, requestId,
+      amount: String(testAmount), orderId,
+      orderInfo: "Debug test", redirectUrl, ipnUrl,
+      extraData: "", requestType: "captureWallet",
+      signature, lang: "vi",
+    };
+
+    const combos = [
+      { ep: "v3", url: "https://test-payment.momo.vn/v3/gateway/api/create", auth: null, label: "v3_noAuth" },
+      { ep: "v3", url: "https://test-payment.momo.vn/v3/gateway/api/create", auth: "Basic " + Buffer.from(`${accessKey}:${secretKey}`).toString("base64"), label: "v3_Basic_ak:sk" },
+      { ep: "v3", url: "https://test-payment.momo.vn/v3/gateway/api/create", auth: "Basic " + Buffer.from(`${partnerCode}:${secretKey}`).toString("base64"), label: "v3_Basic_pc:sk" },
+      { ep: "v2", url: "https://test-payment.momo.vn/v2/gateway/api/create", auth: null, label: "v2_noAuth" },
+    ];
+
+    const results = [];
+    for (const c of combos) {
+      const postData = JSON.stringify(baseBody);
+      const parsedUrl = new URL(c.url);
+      const headers = { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(postData) };
+      if (c.auth) headers["Authorization"] = c.auth;
+
+      const r = await new Promise((resolve) => {
+        const req = https.request({ hostname: parsedUrl.hostname, port: 443, path: parsedUrl.pathname, method: "POST", headers, timeout: 8000 }, (httpRes) => {
+          let d = ""; httpRes.on("data", (ch) => d += ch);
+          httpRes.on("end", () => resolve({ status: httpRes.statusCode, body: d.substring(0, 400) }));
+        });
+        req.on("timeout", () => { req.destroy(); resolve({ status: "timeout" }); });
+        req.on("error", (e) => resolve({ status: "error", body: e.message }));
+        req.write(postData); req.end();
+      });
+      results.push({ combo: c.label, ...r });
+    }
+
+    return res.json({ signature, rawSig, results });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-      stack: error.stack?.split("\n").slice(0, 3).join("\n"),
-    });
+    return res.status(500).json({ error: error.message });
   }
 };
 
