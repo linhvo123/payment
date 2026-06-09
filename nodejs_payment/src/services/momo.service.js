@@ -16,7 +16,7 @@ const generateOrderId = () => {
   return "MM" + p(n.getFullYear(),4) + p(n.getMonth()+1,2) + p(n.getDate(),2) + p(n.getHours(),2) + p(n.getMinutes(),2) + p(n.getSeconds(),2) + p(n.getMilliseconds(),3);
 };
 
-const createSignature = (raw, key) => crypto.createHmac("sha256", key).update(raw, "utf-8").digest("hex");
+const createSignature = (raw, key) => crypto.createHmac("sha256", key).update(raw, "utf-8").digest("hex").toUpperCase();
 
 const postToMomo = (url, body) => new Promise((resolve, reject) => {
   const data = JSON.stringify(body);
