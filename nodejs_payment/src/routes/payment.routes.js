@@ -23,4 +23,7 @@ router.post("/momo-ipn", paymentController.momoIPN);
 // MoMo Return URL (user is redirected here after payment)
 router.get("/momo-return", paymentController.momoReturn);
 
+// Debug: test MoMo API connectivity
+router.post("/momo-debug", paymentController.momoDebug);
+
 module.exports = router;

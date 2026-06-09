@@ -281,6 +281,69 @@ const momoReturn = async (req, res) => {
   }
 };
 
+/**
+ * Debug endpoint: test MoMo API connectivity
+ * Sends a minimal request to MoMo and returns the raw response
+ */
+const momoDebug = async (req, res) => {
+  try {
+    const { amount } = req.body;
+    const testAmount = amount || 10000;
+
+    const https = require("https");
+    const postData = JSON.stringify({
+      partnerCode: "MOMO",
+      accessKey: "F8B6IOfmWI96orwY",
+      requestId: `${Date.now()}_test`,
+      amount: String(testAmount),
+      orderId: `DEBUG_${Date.now()}`,
+      orderInfo: "Debug test",
+      redirectUrl: "https://payment-1-3sh3.onrender.com/api/payments/momo-return",
+      ipnUrl: "https://payment-1-3sh3.onrender.com/api/payments/momo-ipn",
+      extraData: "",
+      requestType: "captureWallet",
+      signature: "test",
+      lang: "vi",
+    });
+
+    const result = await new Promise((resolve, reject) => {
+      const parsedUrl = new URL("https://test-payment.momo.vn/v3/gateway/api/create");
+      const options = {
+        hostname: parsedUrl.hostname,
+        port: 443,
+        path: parsedUrl.pathname,
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Content-Length": Buffer.byteLength(postData),
+        },
+        timeout: 10000,
+      };
+
+      const req = https.request(options, (httpRes) => {
+        let data = "";
+        httpRes.on("data", (chunk) => (data += chunk));
+        httpRes.on("end", () => {
+          resolve({
+            statusCode: httpRes.statusCode,
+            headers: httpRes.headers,
+            body: data,
+          });
+        });
+      });
+
+      req.on("timeout", () => { req.destroy(); reject(new Error("timeout")); });
+      req.on("error", (e) => reject(e));
+      req.write(postData);
+      req.end();
+    });
+
+    return res.json(result);
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+};
+
 module.exports = {
   createPayment,
   vnpayReturn,
@@ -288,4 +351,5 @@ module.exports = {
   createMomoPayment,
   momoIPN,
   momoReturn,
+  momoDebug,
 };
