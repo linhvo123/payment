@@ -11,75 +11,81 @@ import '../services/gateways/vnpay_gateway.dart';
 
 import '../widgets/payment_method_tile.dart';
 import 'payment_result_screen.dart';
+import 'payment_webview.dart';
 
 class PaymentScreen extends StatefulWidget {
   const PaymentScreen({super.key});
 
   @override
-  State<PaymentScreen> createState() =>
-      _PaymentScreenState();
+  State<PaymentScreen> createState() => _PaymentScreenState();
 }
 
-class _PaymentScreenState
-    extends State<PaymentScreen> {
-
+class _PaymentScreenState extends State<PaymentScreen> {
   String? selectedMethodId;
   bool isLoading = false;
 
   final paymentService = PaymentService();
 
   Future<void> handlePayment() async {
-
     if (selectedMethodId == null) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Please select a payment method',
-          ),
-        ),
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Vui lòng chọn phương thức thanh toán')),
       );
       return;
     }
 
     PaymentGateway gateway;
-
     switch (selectedMethodId) {
       case 'momo':
         gateway = MomoGateway();
         break;
-
       case 'vnpay':
         gateway = VNPayGateway();
         break;
-
       default:
         gateway = BankGateway();
     }
 
-    setState(() {
-      isLoading = true;
-    });
+    setState(() => isLoading = true);
 
-    PaymentResult result =
-        await paymentService.processPayment(
+    final result = await paymentService.processPayment(
       gateway: gateway,
       amount: 500000,
     );
 
-    setState(() {
-      isLoading = false;
-    });
+    setState(() => isLoading = false);
 
     if (!mounted) return;
 
+    // For VNPay: open WebView and wait for payment result
+    if (selectedMethodId == 'vnpay' && result.pending) {
+      final vnpayUrl = result.message; // URL stored in message
+      final webViewResult = await Navigator.push<PaymentResult>(
+        context,
+        MaterialPageRoute(
+          builder: (_) => PaymentWebView(paymentUrl: vnpayUrl),
+        ),
+      );
+
+      if (!mounted) return;
+
+      if (webViewResult != null) {
+        _showResult(webViewResult);
+      }
+      return;
+    }
+
+    _showResult(result);
+  }
+
+  void _showResult(PaymentResult result) {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) =>
-            PaymentResultScreen(
+        builder: (_) => PaymentResultScreen(
           success: result.success,
           message: result.message,
+          data: result.data,
         ),
       ),
     );

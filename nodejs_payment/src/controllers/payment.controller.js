@@ -38,7 +38,7 @@ const createPayment = async (req, res) => {
 
 /**
  * VNPay Return URL handler (GET)
- * VNPay redirects user here after payment
+ * VNPay redirects user here after payment → returns JSON for Flutter to display
  */
 const vnpayReturn = async (req, res) => {
   try {
@@ -47,30 +47,9 @@ const vnpayReturn = async (req, res) => {
 
     const result = verifyReturnUrl(req.query);
 
-    if (result.success && result.data.responseCode === "00") {
-      // Payment successful
-      return res.json({
-        success: true,
-        message: "Payment successful",
-        data: result.data,
-      });
-    } else if (result.success && result.data.responseCode !== "00") {
-      // Payment failed or cancelled
-      return res.json({
-        success: false,
-        message: `Payment failed with code: ${result.data.responseCode}`,
-        data: result.data,
-      });
-    } else {
-      // Signature invalid
-      return res.status(400).json({
-        success: false,
-        message: result.message,
-      });
-    }
+    return res.json(result);
   } catch (error) {
     console.error("vnpayReturn error:", error);
-
     return res.status(500).json({
       success: false,
       message: error.message,
