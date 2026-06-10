@@ -131,7 +131,7 @@ const vnpayIPN = async (req, res) => {
  */
 const createMomoPayment = async (req, res) => {
   try {
-    const { amount: rawAmount, orderInfo, appReturnUrl } = req.body;
+    const { amount: rawAmount, orderInfo, appReturnUrl, paymentMethod } = req.body;
 
     // Ensure amount is a positive integer
     const amount = parseInt(rawAmount, 10);
