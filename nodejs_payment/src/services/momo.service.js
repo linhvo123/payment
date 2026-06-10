@@ -38,19 +38,28 @@ const postToMomo = (url, body) => new Promise((resolve, reject) => {
   req.write(data); req.end();
 });
 
-const createPaymentUrl = async ({ amount, orderInfo, appReturnUrl, redirectUrl, ipnUrl }) => {
+const VALID_REQUEST_TYPES = ["captureWallet", "payWithATM", "payWithCC"];
+
+const createPaymentUrl = async ({ amount, orderInfo, appReturnUrl, redirectUrl, ipnUrl, requestType }) => {
   const cfg = getConfig();
   const requestId = generateRequestId();
   const orderId = generateOrderId();
   const extraData = appReturnUrl ? Buffer.from(appReturnUrl).toString("base64") : "";
+  const rt = requestType || "captureWallet";
 
-  const rawSig = "accessKey=" + cfg.accessKey + "&amount=" + amount + "&extraData=" + extraData + "&ipnUrl=" + ipnUrl + "&orderId=" + orderId + "&orderInfo=" + orderInfo + "&partnerCode=" + cfg.partnerCode + "&redirectUrl=" + redirectUrl + "&requestId=" + requestId + "&requestType=captureWallet";
+  // Validate requestType against MoMo supported payment methods
+  if (!VALID_REQUEST_TYPES.includes(rt)) {
+    throw new Error(`Invalid requestType: "${rt}". Must be one of: ${VALID_REQUEST_TYPES.join(", ")}`);
+  }
+
+  // rawSig parameters sorted alphabetically: accessKey, amount, extraData, ipnUrl, orderId, orderInfo, partnerCode, redirectUrl, requestId, requestType
+  const rawSig = "accessKey=" + cfg.accessKey + "&amount=" + amount + "&extraData=" + extraData + "&ipnUrl=" + ipnUrl + "&orderId=" + orderId + "&orderInfo=" + orderInfo + "&partnerCode=" + cfg.partnerCode + "&redirectUrl=" + redirectUrl + "&requestId=" + requestId + "&requestType=" + rt;
   const signature = createSignature(rawSig, cfg.secretKey);
 
   const body = {
     partnerCode: cfg.partnerCode, accessKey: cfg.accessKey,
     requestId, amount: String(amount), orderId, orderInfo,
-    redirectUrl, ipnUrl, extraData, requestType: "captureWallet",
+    redirectUrl, ipnUrl, extraData, requestType: rt,
     signature, lang: "vi",
   };
 

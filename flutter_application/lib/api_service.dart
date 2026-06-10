@@ -61,6 +61,7 @@ class ApiService {
     required int amount,
     required String orderInfo,
     required String appReturnUrl,
+    String paymentMethod = 'captureWallet',
   }) async {
     final uri = Uri.parse('$baseUrl/api/payments/create-momo');
 
@@ -73,6 +74,7 @@ class ApiService {
               'amount': amount,
               'orderInfo': orderInfo,
               'appReturnUrl': appReturnUrl,
+              'paymentMethod': paymentMethod,
             }),
           )
           .timeout(const Duration(seconds: 15));
