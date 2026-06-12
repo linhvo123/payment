@@ -70,7 +70,7 @@ class ResultScreen extends StatelessWidget {
                         ),
                         const Divider(),
                         _buildDetailRow(context, 'Mã giao dịch', data['txnRef']),
-                        _buildDetailRow(context, 'Số tiền', _formatAmount(data['amount'], isMomo: data['payType'] != null)),
+                        _buildDetailRow(context, 'Số tiền', _formatAmount(data['amount'])),
                         _buildDetailRow(context, 'Nội dung', data['orderInfo']),
                         _buildDetailRow(context, 'Mã phản hồi', data['responseCode']),
                         _buildDetailRow(context, 'Mã giao dịch', data['transactionNo']),
@@ -131,11 +131,11 @@ class ResultScreen extends StatelessWidget {
     );
   }
 
-  String _formatAmount(dynamic amount, {bool isMomo = false}) {
+  String _formatAmount(dynamic amount) {
     if (amount == null) return '';
     final numAmount = int.tryParse(amount.toString()) ?? 0;
-    // VNPay returns amount * 100, MoMo returns raw amount
-    final actual = isMomo ? numAmount : numAmount / 100;
+    // VNPay returns amount * 100
+    final actual = numAmount / 100;
     return '${actual.toStringAsFixed(0)} VND';
   }
 

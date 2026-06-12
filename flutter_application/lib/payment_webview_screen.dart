@@ -22,24 +22,26 @@ class _PaymentWebViewScreenState extends State<PaymentWebViewScreen> {
   bool _didPop = false;
 
   @override
+  void dispose() {
+    // Clear the WebView to free memory when leaving this screen
+    _controller.clearCache();
+    super.dispose();
+  }
+
+  @override
   void initState() {
     super.initState();
 
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setBackgroundColor(Colors.white)
-      ..setUserAgent(
-        // Desktop UA - MoMo sandbox page doesn't render QR on mobile
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      )
       ..setNavigationDelegate(
         NavigationDelegate(
           onPageStarted: (url) {
             // Only intercept if the URL already contains a payment result.
             // Otherwise let the backend process the redirect first.
             final uri = Uri.parse(url);
-            if (uri.queryParameters.containsKey('vnpay_result') ||
-                uri.queryParameters.containsKey('momo_result')) {
+            if (uri.queryParameters.containsKey('vnpay_result')) {
               _handleCallbackUrl(url);
               return;
             }
@@ -75,25 +77,6 @@ class _PaymentWebViewScreenState extends State<PaymentWebViewScreen> {
           jsonEncode({
             'success': false,
             'message': 'Invalid payment result data',
-          }),
-        );
-      }
-      return;
-    }
-
-    // Check for MoMo result
-    final momoResult = uri.queryParameters['momo_result'];
-    if (momoResult != null && momoResult.isNotEmpty) {
-      try {
-        final decoded = Uri.decodeComponent(momoResult);
-        jsonDecode(decoded); // validate JSON
-        Navigator.pop(context, decoded);
-      } catch (_) {
-        Navigator.pop(
-          context,
-          jsonEncode({
-            'success': false,
-            'message': 'Invalid MoMo payment result data',
           }),
         );
       }
